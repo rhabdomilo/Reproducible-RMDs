@@ -1,0 +1,205 @@
+---
+title: "A First RMD File"
+author: "Milo Schmitt"
+date: "2023-11-07"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+```{r loadPackages}
+
+#Load packages with groundhog to improve stability
+library("groundhog")
+pkgs <- c("ggplot2", "dplyr", "janitor", "kableExtra", "knitr")
+groundhog.library(pkgs, '2023-11-07') #Use the date that you started the project here
+
+```
+
+## The Collatz Conjecture
+
+The Collatz Conjecture presents two arithmetic operations and a question: if these two operators are applied, will we be able to transform any positive integer into the number 1?
+
+Consider the following piecewise function:
+
+```
+\begin{equation}
+ f(n) =
+   \left\{\begin{array}{lr}
+       f(n/2) & if\ n\ is\ even \\
+       f(3n+2) & if\ n\ is\ odd \\
+       stop & if\ n\ is\ one
+    \end{array}\right.
+ \end{equation}
+ ```
+(The above was created in LateX, and I did not realize that it can only be used with an HTML document)
+ 
+f(n) = {
+f(n/2) if n is even
+f(3n+1) if n is odd
+stop if n is one
+} 
+ 
+The number of times a positive integer n must be passed through this function to transform into one is known as the stopping time. For example, the stopping time of 1 is 0, 2 is 1, and 3 is 7.
+
+The goal presented was to find a visualization to represent the first stopping numbers of the first 10,000 positive integers.
+ 
+``` {r Collatz Function}
+
+# The following code creates a function to find the stopping number of any input with regard to the Collatz Conjecture. It has two sub-functions to find the next output depending on whether the input is even or odd. It also vectorizes the function and uses ggplot2 to create a histogram of stopping times.
+
+updateEven <- function(number) # create function for evens
+{
+return(number/2)
+}
+
+updateOdd <- function(number) # create function for odds
+{
+return(number*3 + 1)
+}
+
+countCollatz <- function(number) # create final function
+{
+count = 0 
+result = 0
+while(number != 1) # stop if number is one
+{
+if(number%%2 == 0)
+{
+result <- updateEven(number) # even function if # is even
+count <- count + 1
+}
+
+else
+{
+result <- updateOdd(number) # odd function if not even
+count <- count + 1
+}
+number = result
+}
+return(count)
+}
+
+inputs <- seq(1, 10000, 1) # input numbers from 1 to 10000
+countCollatzVectorized <- Vectorize(countCollatz)
+stopping_times <- countCollatzVectorized(inputs)
+stopping_times <- as.data.frame(stopping_times) # turn vector into dataframe
+
+ggplot(stopping_times, aes(x = stopping_times)) +
+  geom_histogram(bins=10) + # 10 bins to prevent overcrowding
+  labs( # set labels
+    title = "Frequency of Stopping Times",
+    x = "Stopping Time",
+    y = "Frequency"
+  )
+```
+
+The above histogram displays one bar for a certain range of stopping times. For each of these ranges, the y axis represents the frequency at which the stopping time appears. It should be noted that a majority of the first 10,000 positive integers have stopping times between 0 and 100. 
+
+## Diamonds
+
+The Diamonds dataset provided by R is a large dataset representing a group of diamonds. Each of these diamonds has many attributes: cut, color, price, length, width, height, and more. The goal of this activity is to create a visualization which displays a relationship between a certain diamond characteristic and the price of diamonds.
+
+```{r Diamonds Graph}
+
+# The following code creates a plot which utilizes cut, color, and carat data to visualize changes in diamond prices.
+
+ggplot(diamonds) + aes(x = carat, y = price, colour = color) + # x carat, y price, color by color grade
+
+geom_point(shape = "circle", size = 1.5) + # scatter plot
+
+labs( # more detailed labels
+
+x = "Carat",
+
+y = "Price (USD)",
+
+color = "Color Grade",
+
+title = "Impacts of Cut, Carat, and Color Grade on Diamond Prices"
+
+) +
+
+scale_color_hue(direction = 1) +
+
+theme_minimal() +
+
+facet_wrap(vars(cut)) # five graphs for cut
+```
+
+The above visualizations are an overview of the impacts of Cut, Carat, and Color Grade on the price of diamonds. It is clear from the graphs that Color Grade does not have much of an impact on price. Carat and Cut, however, seem to have some positive correlation with price.
+
+```{r Diamonds Summary}
+
+# The following code utilizes the across function to find various statistics for each dimension of the diamonds.
+
+diamonds %>%
+  group_by(cut) %>%
+  summarise(
+    across(c(x, y, z), list(
+               count = ~sum(!is.na(.)),
+               min = ~min(., na.rm = TRUE),
+               Q1 = ~quantile(., probs = 0.25, na.rm = TRUE),
+               median = ~median(., na.rm = TRUE),
+               Q3 = ~quantile(., probs = 0.75, na.rm = TRUE),
+               max = ~max(., na.rm = TRUE),
+               mad = ~mad(., na.rm = TRUE),
+               mean = ~mean(., na.rm = TRUE),
+               sd = ~sd(., na.rm = TRUE)
+  )))
+```
+The above table is a summary of various statistics derived from the x, y, and z (length, width, height) values from the diamonds data set.
+
+```{r Diamonds Table}
+
+# The following code creates a frequency table using the color and cut statistics of the diamonds data.
+
+diamondTable <- diamonds %>%
+  tabyl(color, cut) %>%
+  adorn_totals(where = c("row", "col")) %>%
+  adorn_percentages(denominator = "all") %>%
+  adorn_pct_formatting(digits = 2) %>%
+  adorn_title(
+    placement = "combined",
+    row_name = "Color",
+    col_name = "Cut")
+
+formatNs <- attr(diamondTable, "core") %>%
+  adorn_totals(where = c("row", "col")) %>%
+  mutate(
+    across(where(is.numeric), format, big.mark = ",")
+  )
+
+diamondFreqTab <- diamondTable %>%
+  adorn_ns(position = "front", ns = formatNs)
+
+diamondFreqTab %>%
+  kable(
+    caption = "Cut and Color of Diamonds",
+    booktabs = TRUE,
+    align = c('l', rep("c", 6))
+  ) %>%
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped", "condensed"),
+    font_size = 16
+  )
+
+```
+The above table displays frequencies of various attributes within the diamond table. It can be noted that a significant portion of the diamonds are of the premium or ideal quality.
+
+## Reflections
+
+The most significant lesson I've learned throughout this course is the ability to plan out and describe my code. Being able to present material in a meaningful and comprehensible manner is very important in all aspects of life, not just data science. I feel that I've also learned how to manipulate and visualize data frames, which is a useful skill to have.
+
+One of my concerns is that data recovered from real-world activities is not always presented in a clean or enjoyable manner. While I have learned various data wrangling skills to account for this, I think I still need to polish these skills for the future.
+
+\newpage
+# Code Appendix
+``` {r codeAppedix}
+#| ref.label = knitr::all_labels(),
+#| echo = TRUE,
+#| eval = FALSE
+```
